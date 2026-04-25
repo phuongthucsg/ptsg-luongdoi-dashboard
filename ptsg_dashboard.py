@@ -11,7 +11,7 @@ APP_SECRET = os.environ.get("LARK_APP_SECRET", "4VvnxEcYH2eF7MeygjPiHg55ufbWqQ8h
 APP_TOKEN = "Gg5TbludRa8oHcswRpNls8C9gZd"
 TABLE_ID = "tbl1SH0zppLyePdB"
 
-COL_NGAY = "Ngày"
+COL_NGAY = "Ngày Thi Công"
 COL_TO_DOI = "Tổ Đội"
 COL_LUONG = "Tổng Lương/ Ngày"
 COL_CONG_TRINH = "Công trình"
