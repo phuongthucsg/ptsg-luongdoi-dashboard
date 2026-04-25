@@ -1,114 +1,4 @@
-import requests
-import os
-import os
-import json
-import re
-from datetime import datetime
-
-APP_ID = os.environ.get("LARK_APP_ID", "cli_a966701989389ed0")
-APP_SECRET = os.environ.get("LARK_APP_SECRET", "4VvnxEcYH2eF7MeygjPiHg55ufbWqQ8h")
-
-APP_TOKEN = "Gg5TbludRa8oHcswRpNls8C9gZd"
-TABLE_ID = "tbl1SH0zppLyePdB"
-
-COL_NGAY = "Ngày"
-COL_TO_DOI = "Tổ Đội"
-COL_LUONG = "Tổng Lương/ Ngày"
-COL_CONG_TRINH = "Công trình"
-
-OUTPUT_FILE = "ptsg_dashboard.html"
-
-
-def get_access_token():
-    url = "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal"
-    resp = requests.post(url, json={"app_id": APP_ID, "app_secret": APP_SECRET})
-    data = resp.json()
-    if data.get("code") != 0:
-        raise Exception(f"Lỗi lấy token: {data}")
-    print("✅ Lấy token thành công")
-    return data["tenant_access_token"]
-
-
-def get_all_records(token):
-    url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{APP_TOKEN}/tables/{TABLE_ID}/records"
-    headers = {"Authorization": f"Bearer {token}"}
-    all_records = []
-    page_token = None
-    page = 1
-    while True:
-        params = {"page_size": 100}
-        if page_token:
-            params["page_token"] = page_token
-        resp = requests.get(url, headers=headers, params=params)
-        data = resp.json()
-        if data.get("code") != 0:
-            raise Exception(f"Lỗi lấy dữ liệu: {data}")
-        items = data["data"]["items"]
-        all_records.extend(items)
-        print(f"  Trang {page}: {len(items)} records")
-        if not data["data"].get("has_more"):
-            break
-        page_token = data["data"]["page_token"]
-        page += 1
-    print(f"✅ Tổng cộng: {len(all_records)} records")
-    return all_records
-
-
-def parse_money(val):
-    if isinstance(val, (int, float)):
-        return int(val)
-    if isinstance(val, str):
-        clean = re.sub(r'[₫,\s]', '', val)
-        try:
-            return int(float(clean))
-        except:
-            return 0
-    return 0
-
-
-def parse_date(val):
-    if isinstance(val, (int, float)):
-        return datetime.fromtimestamp(val / 1000).strftime('%Y/%m/%d')
-    if isinstance(val, str):
-        return val[:10].replace('-', '/')
-    return None
-
-
-def get_text(val):
-    if isinstance(val, str):
-        return val.strip()
-    if isinstance(val, list):
-        parts = []
-        for item in val:
-            if isinstance(item, dict):
-                parts.append(item.get("text", ""))
-            elif isinstance(item, str):
-                parts.append(item)
-        return "".join(parts).strip()
-    if isinstance(val, (int, float)):
-        return str(val)
-    return ""
-
-
-def process_records(records):
-    data = []
-    for r in records:
-        fields = r.get("fields", {})
-        ngay = parse_date(fields.get(COL_NGAY))
-        to_doi = get_text(fields.get(COL_TO_DOI, ""))
-        luong = parse_money(fields.get(COL_LUONG, 0))
-        cong_trinh = get_text(fields.get(COL_CONG_TRINH, ""))
-        if ngay and to_doi:
-            data.append({"ngay": ngay, "to_doi": to_doi, "cong_trinh": cong_trinh, "luong": luong})
-        else:
-            print(f"  ⚠️  Bỏ qua: ngay={fields.get(COL_NGAY)}, to_doi={fields.get(COL_TO_DOI)}")
-    return data
-
-
-def generate_html(data):
-    data_json = json.dumps(data, ensure_ascii=False)
-    now = datetime.now().strftime("%d/%m/%Y %H:%M")
-    html = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -148,7 +38,7 @@ def generate_html(data):
 </head>
 <body>
 <h1>📊 Dashboard Lương Tổ Đội — PTSG</h1>
-<p class="subtitle">Dữ liệu cập nhật lúc: """ + now + """ · Tổng """ + str(len(data)) + """ bản ghi</p>
+<p class="subtitle">Dữ liệu cập nhật lúc: 25/04/2026 23:14 · Tổng 46 bản ghi</p>
 <div class="filters">
   <div class="filter-group"><label>Từ ngày</label><input type="date" id="dateFrom"></div>
   <div class="filter-group"><label>Đến ngày</label><input type="date" id="dateTo"></div>
@@ -163,9 +53,9 @@ def generate_html(data):
   <thead><tr><th>Tổ Đội</th><th>Công Trình</th><th class="right">Số ngày công</th><th class="right">Tổng Lương</th><th class="right">TB / Ngày</th></tr></thead>
   <tbody id="tableBody"><tr><td colspan="5" class="empty">Nhấn "Tính lương" để xem kết quả</td></tr></tbody>
 </table>
-<p class="updated">⏱ Dữ liệu lấy từ Lark Base lúc """ + now + """. Chạy lại script để cập nhật.</p>
+<p class="updated">⏱ Dữ liệu lấy từ Lark Base lúc 25/04/2026 23:14. Chạy lại script để cập nhật.</p>
 <script>
-const RAW = """ + data_json + """;
+const RAW = [{"ngay": "2026/04/25", "to_doi": "An Điện Nước", "cong_trinh": "FPT-RAINSCAL Q.10", "luong": 1250000}, {"ngay": "2026/04/22", "to_doi": "An Điện Nước", "cong_trinh": "KG - TRẠM BÌNH HÒA - NHÀ B.A.Y", "luong": 1250000}, {"ngay": "2026/04/20", "to_doi": "An Điện Nước", "cong_trinh": "TP-184 Nguyễn Xí", "luong": 650000}, {"ngay": "2026/04/25", "to_doi": "A. Quân Trà Vinh", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 3250000}, {"ngay": "2026/04/25", "to_doi": "An Điện Nước", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 600000}, {"ngay": "2026/04/24", "to_doi": "A. Quân Trà Vinh", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 3500000}, {"ngay": "2026/04/24", "to_doi": "An Điện Nước", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 600000}, {"ngay": "2026/04/23", "to_doi": "A. Quân Trà Vinh", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 3000000}, {"ngay": "2026/04/23", "to_doi": "An Điện Nước", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 600000}, {"ngay": "2026/04/22", "to_doi": "A. Quân Trà Vinh", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 2250000}, {"ngay": "2026/04/22", "to_doi": "An Điện Nước", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 600000}, {"ngay": "2026/04/21", "to_doi": "A. Quân Trà Vinh", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 3500000}, {"ngay": "2026/04/21", "to_doi": "An Điện Nước", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 600000}, {"ngay": "2026/04/20", "to_doi": "A. Quân Trà Vinh", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 3500000}, {"ngay": "2026/04/20", "to_doi": "An Điện Nước", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 1200000}, {"ngay": "2026/04/18", "to_doi": "An Điện Nước", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 1200000}, {"ngay": "2026/04/17", "to_doi": "An Điện Nước", "cong_trinh": "KG-TIẾP ĐỊA TRÀ VINH", "luong": 1200000}, {"ngay": "2026/04/16", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1300000}, {"ngay": "2026/04/15", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1300000}, {"ngay": "2026/04/15", "to_doi": "Thạch ME", "cong_trinh": "KG - TRẠM ĐIỆN NHÀ BÈ", "luong": 1400000}, {"ngay": "2026/04/08", "to_doi": "Thạch ME", "cong_trinh": "KG - TRẠM ĐIỆN NHÀ BÈ", "luong": 3500000}, {"ngay": "2026/04/03", "to_doi": "An Điện Nước", "cong_trinh": "FPT-RAINSCAL Q.10", "luong": 650000}, {"ngay": "2026/04/02", "to_doi": "An Điện Nước", "cong_trinh": "KG - TRẠM ĐIỆN NHÀ BÈ", "luong": 650000}, {"ngay": "2026/04/01", "to_doi": "An Điện Nước", "cong_trinh": "KG - TRẠM ĐIỆN NHÀ BÈ", "luong": 650000}, {"ngay": "2026/03/30", "to_doi": "An Điện Nước", "cong_trinh": "KG - TRẠM ĐIỆN NHÀ BÈ", "luong": 650000}, {"ngay": "2026/03/26", "to_doi": "Đội A. Tiến Điện Nước", "cong_trinh": "DLS- KHO QUẬN 9", "luong": 1100000}, {"ngay": "2026/03/25", "to_doi": "Đội A. Tiến Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1100000}, {"ngay": "2026/03/23", "to_doi": "Hoàng ME", "cong_trinh": "DLS- KHO QUẬN 9", "luong": 1200000}, {"ngay": "2026/03/23", "to_doi": "Đội A. Tiến Điện Nước", "cong_trinh": "DLS- KHO QUẬN 9", "luong": 1100000}, {"ngay": "2026/03/19", "to_doi": "Đội A. Tiến Điện Nước", "cong_trinh": "DLS- KHO QUẬN 9", "luong": 1100000}, {"ngay": "2026/03/18", "to_doi": "Đội A. Tiến Điện Nước", "cong_trinh": "DLS- KHO QUẬN 9", "luong": 1100000}, {"ngay": "2026/03/17", "to_doi": "Đội A. Tiến Điện Nước", "cong_trinh": "DLS- KHO QUẬN 9", "luong": 500000}, {"ngay": "2026/03/16", "to_doi": "Đội A. Tiến Điện Nước", "cong_trinh": "DLS- KHO QUẬN 9", "luong": 500000}, {"ngay": "2026/03/15", "to_doi": "Đội A. Tiến Điện Nước", "cong_trinh": "DLS- KHO QUẬN 9", "luong": 1100000}, {"ngay": "2026/03/14", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1250000}, {"ngay": "2026/03/13", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1250000}, {"ngay": "2026/03/12", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1250000}, {"ngay": "2026/03/10", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 650000}, {"ngay": "2026/03/09", "to_doi": "An Điện Nước", "cong_trinh": "FPT-RAINSCAL Q.10", "luong": 1900000}, {"ngay": "2026/03/08", "to_doi": "An Điện Nước", "cong_trinh": "FPT-RAINSCAL Q.10", "luong": 1250000}, {"ngay": "2026/03/07", "to_doi": "An Điện Nước", "cong_trinh": "FPT-RAINSCAL Q.10", "luong": 1250000}, {"ngay": "2026/03/06", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1250000}, {"ngay": "2026/03/05", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1250000}, {"ngay": "2026/03/04", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1250000}, {"ngay": "2026/03/03", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1250000}, {"ngay": "2026/03/02", "to_doi": "An Điện Nước", "cong_trinh": "CDM-MỸ VĂN", "luong": 1250000}];
 const COLORS = ['#4f6ef7','#34d399','#f59e0b','#f472b6','#a78bfa','#60a5fa','#fb923c'];
 function fmt(n) { return '₫' + n.toLocaleString('vi-VN'); }
 function parseDate(s) { const [y,m,d] = s.split('/'); return new Date(+y,+m-1,+d); }
@@ -248,25 +138,4 @@ function calculate() {
 buildWeeks(); buildFilters(); calculate();
 </script>
 </body>
-</html>"""
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        f.write(html)
-    print(f"✅ Dashboard đã tạo: {OUTPUT_FILE}")
-
-
-def main():
-    print("🚀 Bắt đầu lấy dữ liệu từ Lark Base...")
-    token = get_access_token()
-    print("📥 Đang tải dữ liệu...")
-    records = get_all_records(token)
-    print("⚙️  Đang xử lý dữ liệu...")
-    data = process_records(records)
-    print(f"✅ Xử lý xong: {len(data)} bản ghi hợp lệ")
-    print("🎨 Đang tạo dashboard...")
-    generate_html(data)
-    print()
-    print(f"✨ Hoàn thành! Mở file '{OUTPUT_FILE}' trong trình duyệt để xem.")
-
-
-if __name__ == "__main__":
-    main()
+</html>
