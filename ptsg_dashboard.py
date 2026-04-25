@@ -152,7 +152,6 @@ def generate_html(data):
 <div class="filters">
   <div class="filter-group"><label>Từ ngày</label><input type="date" id="dateFrom"></div>
   <div class="filter-group"><label>Đến ngày</label><input type="date" id="dateTo"></div>
-  <div class="filter-group"><label>Tuần nhanh</label><select id="weekPicker"><option value="">-- Chọn tuần --</option></select></div>
   <div class="filter-group"><label>Tổ đội</label><select id="toDoi"><option value="">Tất cả</option></select></div>
   <div class="filter-group"><label>Công trình</label><select id="congTrinh"><option value="">Tất cả</option></select></div>
   <button class="btn" onclick="calculate()">Tính lương</button>
