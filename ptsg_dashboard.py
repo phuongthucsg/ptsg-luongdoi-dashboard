@@ -68,7 +68,7 @@ def parse_money(val):
 
 def parse_date(val):
     if isinstance(val, (int, float)):
-        return datetime.fromtimestamp(val / 1000).strftime('%Y/%m/%d')
+        from datetime import timezone, timedelta; tz_vn = timezone(timedelta(hours=7)); return datetime.fromtimestamp(val / 1000, tz=tz_vn).strftime('%Y/%m/%d')
     if isinstance(val, str):
         return val[:10].replace('-', '/')
     return None
