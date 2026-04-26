@@ -196,7 +196,7 @@ function calc(){{
       '<td class="r gv">'+fmt(v.luong)+'</td>'+
       '<td class="r">'+fmt(Math.round(v.luong/v.ngay))+'</td></tr>';
   }});
-  var tns=rows.reduce(function(s,v){return s+v.nhan_su;},0);
+  var tns=rows.reduce(function(s,v){return s+v.nhan_su;},0)
   h+='<tr class="tr"><td colspan="2">TỔNG CỘNG</td><td class="r">'+tns+'</td><td class="r">'+tn+' ngày</td><td class="r">'+fmt(tl)+'</td><td class="r">—</td></tr>';
   document.getElementById('tb').innerHTML=h;
 }}
