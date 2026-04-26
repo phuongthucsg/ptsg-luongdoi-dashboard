@@ -169,7 +169,7 @@ def generate_html(data):
 const RAW = """ + data_json + """;
 const COLORS = ['#4f6ef7','#34d399','#f59e0b','#f472b6','#a78bfa','#60a5fa','#fb923c'];
 function fmt(n) { return '₫' + n.toLocaleString('vi-VN'); }
-function parseDate(s) { const [y,m,d] = s.split('/'); return new Date(+y,+m-1,+d); }
+function parseDate(s) { const [y,m,d] = s.split('/'); return new Date(+y,+m-1,+d,12,0,0); }
 function toInput(d) { return d.toISOString().split('T')[0]; }
 function buildWeeks() {
   const dates = RAW.map(r => parseDate(r.ngay));
