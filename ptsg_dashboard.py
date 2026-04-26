@@ -9,6 +9,7 @@ COL_NGAY = "Ngày Thi Công"
 COL_TO_DOI = "Tổ Đội"
 COL_LUONG = "Tổng Lương/ Ngày"
 COL_CONG_TRINH = "Công trình"
+COL_NHAN_SU = "Tổng Nhân Sự"
 OUTPUT_FILE = "ptsg_dashboard.html"
 
 def get_access_token():
@@ -72,8 +73,9 @@ def process_records(records):
         to_doi = get_text(fields.get(COL_TO_DOI, ""))
         luong = parse_money(fields.get(COL_LUONG, 0))
         cong_trinh = get_text(fields.get(COL_CONG_TRINH, ""))
+        nhan_su = int(fields.get(COL_NHAN_SU, 0) or 0)
         if ngay and to_doi:
-            data.append({"ngay": ngay, "to_doi": to_doi, "cong_trinh": cong_trinh, "luong": luong})
+            data.append({"ngay": ngay, "to_doi": to_doi, "cong_trinh": cong_trinh, "luong": luong, "nhan_su": nhan_su})
     return data
 
 def generate_html(data):
@@ -130,7 +132,7 @@ tr:hover td{{background:#252840}}
 <div class="cards" id="cards"></div>
 <table>
   <thead><tr><th>Tổ Đội</th><th>Công Trình</th><th class="r">Ngày công</th><th class="r">Tổng Lương</th><th class="r">TB/Ngày</th></tr></thead>
-  <tbody id="tb"><tr><td colspan="5" class="empty">Nhấn "Tính lương" để xem kết quả</td></tr></tbody>
+  <tbody id="tb"><tr><td colspan="6" class="empty">Nhấn "Tính lương" để xem kết quả</td></tr></tbody>
 </table>
 <p class="foot">⏱ Dữ liệu lấy từ Lark Base lúc {now}. Chạy lại script để cập nhật.</p>
 <script>
@@ -170,8 +172,8 @@ function calc(){{
   var g={{}};
   filtered.forEach(function(r){{
     var k=r.to_doi+'||'+r.cong_trinh;
-    if(!g[k])g[k]={{to_doi:r.to_doi,cong_trinh:r.cong_trinh,luong:0,ngay:0}};
-    g[k].luong+=r.luong;g[k].ngay+=1;
+    if(!g[k])g[k]={{to_doi:r.to_doi,cong_trinh:r.cong_trinh,luong:0,ngay:0,nhan_su:0}};
+    g[k].luong+=r.luong;g[k].ngay+=1;g[k].nhan_su+=r.nhan_su;
   }});
   var rows=Object.values(g).sort(function(a,b){{return b.luong-a.luong;}});
   var tl=rows.reduce(function(s,v){{return s+v.luong;}},0);
@@ -183,17 +185,19 @@ function calc(){{
     '<div class="card"><div class="cl">Số tổ đội</div><div class="cv blue">'+tds.length+'</div></div>'+
     '<div class="card"><div class="cl">Tổng ngày công</div><div class="cv">'+tn+'</div></div>'+
     '<div class="card"><div class="cl">TB/tổ đội</div><div class="cv">'+(tds.length?fmt(Math.round(tl/tds.length)):'₫0')+'</div></div>';
-  if(!rows.length){{document.getElementById('tb').innerHTML='<tr><td colspan="5" class="empty">Không có dữ liệu</td></tr>';return;}}
+  if(!rows.length){{document.getElementById('tb').innerHTML='<tr><td colspan="6" class="empty">Không có dữ liệu</td></tr>';return;}}
   var h='';
   rows.forEach(function(v){{
     var i=tds.indexOf(v.to_doi)%C.length;
     h+='<tr><td><span class="badge" style="background:'+C[i]+'22;color:'+C[i]+'">'+v.to_doi+'</span></td>'+
       '<td style="color:#9ca3af;font-size:12px">'+v.cong_trinh+'</td>'+
+      '<td class="r">'+v.nhan_su+'</td>'+
       '<td class="r">'+v.ngay+' ngày</td>'+
       '<td class="r gv">'+fmt(v.luong)+'</td>'+
       '<td class="r">'+fmt(Math.round(v.luong/v.ngay))+'</td></tr>';
   }});
-  h+='<tr class="tr"><td colspan="2">TỔNG CỘNG</td><td class="r">'+tn+' ngày</td><td class="r">'+fmt(tl)+'</td><td class="r">—</td></tr>';
+  var tns=rows.reduce(function(s,v){return s+v.nhan_su;},0);
+  h+='<tr class="tr"><td colspan="2">TỔNG CỘNG</td><td class="r">'+tns+'</td><td class="r">'+tn+' ngày</td><td class="r">'+fmt(tl)+'</td><td class="r">—</td></tr>';
   document.getElementById('tb').innerHTML=h;
 }}
 init();calc();
