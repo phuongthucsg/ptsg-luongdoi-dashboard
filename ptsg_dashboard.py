@@ -247,7 +247,7 @@ function calculate() {
   }).join('') +
     '<tr class="total-row"><td colspan="2">TỔNG CỘNG</td><td class="right">'+totalNgay+' ngày</td><td class="right">'+fmt(totalLuong)+'</td><td class="right">—</td></tr>';
 }
-buildWeeks(); buildFilters(); calculate();
+buildFilters(); calculate();
 </script>
 </body>
 </html>"""
