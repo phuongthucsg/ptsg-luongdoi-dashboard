@@ -207,8 +207,9 @@ document.getElementById('weekPicker').addEventListener('change', function() {
 });
 function calculate() {
   const from = new Date(document.getElementById('dateFrom').value);
+  from.setHours(0,0,0,0);
   const to = new Date(document.getElementById('dateTo').value);
-  to.setHours(23,59,59);
+  to.setHours(23,59,59,999);
   const filterTD = document.getElementById('toDoi').value;
   const filterCT = document.getElementById('congTrinh').value;
   const filtered = RAW.filter(r => {
