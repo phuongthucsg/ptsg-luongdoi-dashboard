@@ -1,0 +1,224 @@
+import requests, json, re, os
+from datetime import datetime, timezone, timedelta
+
+APP_ID = os.environ.get("LARK_APP_ID", "cli_a966701989389ed0")
+APP_SECRET = os.environ.get("LARK_APP_SECRET", "4VvnxEcYH2eF7MeygjPiHg55ufbWqQ8h")
+APP_TOKEN = "Gg5TbludRa8oHcswRpNls8C9gZd"
+TABLE_ID = "tbl1SH0zppLyePdB"
+COL_NGAY = "Ngày Thi Công"
+COL_TO_DOI = "Tổ Đội"
+COL_LUONG = "Tổng Lương/ Ngày"
+COL_CONG_TRINH = "Công trình"
+COL_NHAN_SU = "Tổng Nhân Sự"
+OUTPUT_FILE = "ptsg_dashboard.html"
+
+def get_access_token():
+    url = "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal"
+    resp = requests.post(url, json={"app_id": APP_ID, "app_secret": APP_SECRET})
+    data = resp.json()
+    if data.get("code") != 0:
+        raise Exception(f"Lỗi lấy token: {data}")
+    print("✅ Lấy token thành công")
+    return data["tenant_access_token"]
+
+def get_all_records(token):
+    url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{APP_TOKEN}/tables/{TABLE_ID}/records"
+    headers = {"Authorization": f"Bearer {token}"}
+    all_records, page_token, page = [], None, 1
+    while True:
+        params = {"page_size": 100}
+        if page_token: params["page_token"] = page_token
+        resp = requests.get(url, headers=headers, params=params)
+        data = resp.json()
+        if data.get("code") != 0: raise Exception(f"Lỗi: {data}")
+        items = data["data"]["items"]
+        all_records.extend(items)
+        print(f"  Trang {page}: {len(items)} records")
+        if not data["data"].get("has_more"): break
+        page_token = data["data"]["page_token"]
+        page += 1
+    print(f"✅ Tổng cộng: {len(all_records)} records")
+    return all_records
+
+def parse_money(val):
+    if isinstance(val, (int, float)): return int(val)
+    if isinstance(val, str):
+        clean = re.sub(r'[₫,\s]', '', val)
+        try: return int(float(clean))
+        except: return 0
+    return 0
+
+def parse_date(val):
+    tz_vn = timezone(timedelta(hours=7))
+    if isinstance(val, (int, float)):
+        return datetime.fromtimestamp(val / 1000, tz=tz_vn).strftime('%Y/%m/%d')
+    if isinstance(val, str): return val[:10].replace('-', '/')
+    return None
+
+def get_text(val):
+    if isinstance(val, str): return val.strip()
+    if isinstance(val, list):
+        parts = []
+        for item in val:
+            if isinstance(item, dict): parts.append(item.get("text", ""))
+            elif isinstance(item, str): parts.append(item)
+        return "".join(parts).strip()
+    return ""
+
+def process_records(records):
+    data = []
+    for r in records:
+        fields = r.get("fields", {})
+        ngay = parse_date(fields.get(COL_NGAY))
+        to_doi = get_text(fields.get(COL_TO_DOI, ""))
+        luong = parse_money(fields.get(COL_LUONG, 0))
+        cong_trinh = get_text(fields.get(COL_CONG_TRINH, ""))
+        nhan_su = int(fields.get(COL_NHAN_SU, 0) or 0)
+        if ngay and to_doi:
+            data.append({"ngay": ngay, "to_doi": to_doi, "cong_trinh": cong_trinh, "luong": luong, "nhan_su": nhan_su})
+    return data
+
+def generate_html(data):
+    data_json = json.dumps(data, ensure_ascii=False)
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    html = f'''<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PTSG Dashboard Lương Tổ Đội</title>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e8eaf0;padding:20px;min-height:100vh}}
+h1{{font-size:20px;font-weight:700;color:#fff;margin-bottom:4px}}
+.sub{{font-size:12px;color:#6b7280;margin-bottom:20px}}
+.filters{{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end}}
+.fg{{display:flex;flex-direction:column;gap:5px}}
+label{{font-size:11px;color:#9ca3af;font-weight:500;text-transform:uppercase;letter-spacing:.5px}}
+input[type=date],select{{background:#1e2130;border:1px solid #2d3148;color:#e8eaf0;padding:8px 12px;border-radius:8px;font-size:13px;outline:none;min-width:140px;-webkit-appearance:none}}
+.btn{{background:#4f6ef7;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-end}}
+.btn:hover{{background:#3d5ce6}}
+.cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}}
+.card{{background:#1e2130;border:1px solid #2d3148;border-radius:12px;padding:14px 16px}}
+.cl{{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}}
+.cv{{font-size:20px;font-weight:700;color:#fff}}
+.cv.blue{{color:#4f6ef7}}.cv.green{{color:#34d399}}
+table{{width:100%;border-collapse:collapse;background:#1e2130;border-radius:12px;overflow:hidden;border:1px solid #2d3148;margin-bottom:16px}}
+thead{{background:#252840}}
+th{{padding:12px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #2d3148}}
+th.r,td.r{{text-align:right}}
+td{{padding:11px 14px;font-size:13px;border-bottom:1px solid #1a1d2e;color:#d1d5db}}
+tr:last-child td{{border-bottom:none}}
+tr:hover td{{background:#252840}}
+.badge{{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600}}
+.gv{{font-weight:600;color:#34d399}}
+.tr td{{background:#252840;font-weight:700;color:#fff;border-top:2px solid #4f6ef7}}
+.info{{font-size:12px;color:#6b7280;margin-bottom:12px;padding:8px 12px;background:#1e2130;border-radius:8px;border-left:3px solid #4f6ef7}}
+.empty{{text-align:center;padding:40px;color:#6b7280;font-size:14px}}
+.foot{{font-size:11px;color:#4b5563;margin-top:16px}}
+</style>
+</head>
+<body>
+<h1>📊 Dashboard Lương Tổ Đội — PTSG</h1>
+<p class="sub">Dữ liệu cập nhật lúc: {now} · Tổng {len(data)} bản ghi</p>
+<div class="filters">
+  <div class="fg"><label>Từ ngày</label><input type="date" id="df"></div>
+  <div class="fg"><label>Đến ngày</label><input type="date" id="dt"></div>
+  <div class="fg"><label>Tổ đội</label><select id="td"><option value="">Tất cả</option></select></div>
+  <div class="fg"><label>Công trình</label><select id="ct"><option value="">Tất cả</option></select></div>
+  <button class="btn" onclick="calc()">Tính lương</button>
+</div>
+<div class="info" id="info">Chọn khoảng ngày và nhấn Tính lương</div>
+<div class="cards" id="cards"></div>
+<table>
+  <thead><tr><th>Tổ Đội</th><th>Công Trình</th><th class="r">Ngày công</th><th class="r">Tổng Lương</th><th class="r">TB/Ngày</th></tr></thead>
+  <tbody id="tb"><tr><td colspan="6" class="empty">Nhấn "Tính lương" để xem kết quả</td></tr></tbody>
+</table>
+<p class="foot">⏱ Dữ liệu lấy từ Lark Base lúc {now}. Chạy lại script để cập nhật.</p>
+<script>
+var D={data_json};
+var C=['#4f6ef7','#34d399','#f59e0b','#f472b6','#a78bfa','#60a5fa','#fb923c'];
+function fmt(n){{return '₫'+n.toLocaleString('vi-VN');}}
+function pd(s){{var p=s.split('/');return new Date(+p[0],+p[1]-1,+p[2],12,0,0);}}
+function init(){{
+  var dates=D.map(function(r){{return pd(r.ngay);}});
+  var mx=new Date(Math.max.apply(null,dates));
+  var mn=new Date(mx);mn.setDate(mn.getDate()-6);
+  document.getElementById('df').value=mn.toISOString().split('T')[0];
+  document.getElementById('dt').value=mx.toISOString().split('T')[0];
+  var tds=[],cts=[];
+  D.forEach(function(r){{
+    if(tds.indexOf(r.to_doi)<0)tds.push(r.to_doi);
+    if(cts.indexOf(r.cong_trinh)<0)cts.push(r.cong_trinh);
+  }});
+  tds.sort();cts.sort();
+  var ts=document.getElementById('td');
+  tds.forEach(function(t){{var o=document.createElement('option');o.value=t;o.textContent=t;ts.appendChild(o);}});
+  var cs=document.getElementById('ct');
+  cts.forEach(function(c){{var o=document.createElement('option');o.value=c;o.textContent=c;cs.appendChild(o);}});
+}}
+function calc(){{
+  var fv=document.getElementById('df').value,tv=document.getElementById('dt').value;
+  if(!fv||!tv){{document.getElementById('info').textContent='Vui lòng chọn ngày!';return;}}
+  var fp=fv.split('-'),tp=tv.split('-');
+  var from=new Date(+fp[0],+fp[1]-1,+fp[2],0,0,0);
+  var to=new Date(+tp[0],+tp[1]-1,+tp[2],23,59,59);
+  var ftd=document.getElementById('td').value;
+  var fct=document.getElementById('ct').value;
+  var filtered=D.filter(function(r){{
+    var d=pd(r.ngay);
+    return d>=from&&d<=to&&(ftd===''||r.to_doi===ftd)&&(fct===''||r.cong_trinh===fct);
+  }});
+  var g={{}};
+  filtered.forEach(function(r){{
+    var k=r.to_doi+'||'+r.cong_trinh;
+    if(!g[k])g[k]={{to_doi:r.to_doi,cong_trinh:r.cong_trinh,luong:0,ngay:0,nhan_su:0}};
+    g[k].luong+=r.luong;g[k].ngay+=1;g[k].nhan_su+=r.nhan_su;
+  }});
+  var rows=Object.values(g).sort(function(a,b){{return b.luong-a.luong;}});
+  var tl=rows.reduce(function(s,v){{return s+v.luong;}},0);
+  var tn=rows.reduce(function(s,v){{return s+v.ngay;}},0);
+  var tds=[];rows.forEach(function(r){{if(tds.indexOf(r.to_doi)<0)tds.push(r.to_doi);}});
+  document.getElementById('info').textContent='Kỳ tính lương: '+from.toLocaleDateString('vi-VN')+' → '+to.toLocaleDateString('vi-VN')+' · '+filtered.length+' bản ghi';
+  document.getElementById('cards').innerHTML=
+    '<div class="card"><div class="cl">Tổng lương kỳ</div><div class="cv green">'+fmt(tl)+'</div></div>'+
+    '<div class="card"><div class="cl">Số tổ đội</div><div class="cv blue">'+tds.length+'</div></div>'+
+    '<div class="card"><div class="cl">Tổng ngày công</div><div class="cv">'+tn+'</div></div>'+
+    '<div class="card"><div class="cl">TB/tổ đội</div><div class="cv">'+(tds.length?fmt(Math.round(tl/tds.length)):'₫0')+'</div></div>';
+  if(!rows.length){{document.getElementById('tb').innerHTML='<tr><td colspan="6" class="empty">Không có dữ liệu</td></tr>';return;}}
+  var h='';
+  rows.forEach(function(v){{
+    var i=tds.indexOf(v.to_doi)%C.length;
+    h+='<tr><td><span class="badge" style="background:'+C[i]+'22;color:'+C[i]+'">'+v.to_doi+'</span></td>'+
+      '<td style="color:#9ca3af;font-size:12px">'+v.cong_trinh+'</td>'+
+      '<td class="r">'+v.nhan_su+'</td>'+
+      '<td class="r">'+v.ngay+' ngày</td>'+
+      '<td class="r gv">'+fmt(v.luong)+'</td>'+
+      '<td class="r">'+fmt(Math.round(v.luong/v.ngay))+'</td></tr>';
+  }});
+  var tns=rows.reduce(function(s,v){{return s+v.nhan_su;}},0)
+  h+='<tr class="tr"><td colspan="2">TỔNG CỘNG</td><td class="r">'+tns+'</td><td class="r">'+tn+' ngày</td><td class="r">'+fmt(tl)+'</td><td class="r">—</td></tr>';
+  document.getElementById('tb').innerHTML=h;
+}}
+init();calc();
+</script>
+</body>
+</html>'''
+    html = html.replace('{data_json}', data_json)
+    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        f.write(html)
+    print(f"✅ Dashboard đã tạo: {OUTPUT_FILE}")
+
+def main():
+    print("🚀 Bắt đầu lấy dữ liệu từ Lark Base...")
+    token = get_access_token()
+    print("📥 Đang tải dữ liệu...")
+    records = get_all_records(token)
+    print("⚙️  Đang xử lý...")
+    data = process_records(records)
+    print(f"✅ {len(data)} bản ghi hợp lệ")
+    generate_html(data)
+    print(f"✨ Hoàn thành!")
+
+if __name__ == "__main__":
+    main()
